@@ -11,6 +11,8 @@ fn main() {
     let duration_since_epoch_nanos = record_nanos();
     // Statements here are executed when the compiled binary is called.
 
+    let warning_test = "unused";
+
     println!("welcome to a {} nanoseconds of runtime", 100000000.group_with_nothing());
 
     wait_one_millis_and_micros_and_nanos();
