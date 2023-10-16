@@ -13,6 +13,11 @@ fn main() {
     let duration_since_epoch_nanos = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos();
     // Statements here are executed when the compiled binary is called.
 
+    wait_one_millis_and_micros_and_nanos();
+    display_time_elapsed_nice(duration_since_epoch_nanos);
+}
+
+fn wait_one_millis_and_micros_and_nanos(){
     let tsn = Duration::from_nanos(1);
     // Print text to the console.
     
@@ -27,11 +32,7 @@ fn main() {
     // Print text to the console.
     
     thread::sleep(tsn3);
-
-    display_time_elapsed_nice(duration_since_epoch_nanos);
 }
-
-
 
 fn display_time_elapsed_nice(recorded_start: u128) {
     println!("Hello World! Time passed {}", (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() - recorded_start)
