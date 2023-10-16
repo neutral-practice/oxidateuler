@@ -5,7 +5,6 @@
 // This is the main function.
 
 use std::time::{Duration, SystemTime};
-
 use std::thread;
 
 
@@ -36,13 +35,24 @@ fn wait_one_millis_and_micros_and_nanos(){
 
 fn display_time_elapsed_nice(recorded_start: u128) {
     println!("Hello World! Time passed {}", (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() - recorded_start)
-    .to_string()                             // lol
-    .as_bytes()                              // this is 
-    .rchunks(3)                              // how
-    .rev()                                   // we 
-    .map(std::str::from_utf8)                // format large numbers
-    .collect::<Result<Vec<&str>, _>>()       // to visually readable formats
-    .unwrap()                                // in rust
-    .join(" ")                               // and nobody minds this
+    .group_with_nothing()
     );                                       // this is great
+}
+
+pub trait Groupable {
+    fn group_with_nothing(&self) -> String;
+}
+
+impl Groupable for u128 {
+    fn group_with_nothing(&self) -> String {
+        self
+        .to_string()                             // lol
+        .as_bytes()                              // this is 
+        .rchunks(3)                              // how
+        .rev()                                   // we 
+        .map(std::str::from_utf8)                // format large numbers
+        .collect::<Result<Vec<&str>, _>>()       // to visually readable formats
+        .unwrap()                                // in rust
+        .join(" ")                               // and nobody minds this
+    }
 }
