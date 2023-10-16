@@ -28,7 +28,13 @@ fn main() {
     
     thread::sleep(tsn3);
 
-    println!("Hello World! Time passed {}", (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() - duration_since_epoch_nanos)
+    display_time_elapsed_nice(duration_since_epoch_nanos);
+}
+
+
+
+fn display_time_elapsed_nice(recorded_start: u128) {
+    println!("Hello World! Time passed {}", (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() - recorded_start)
     .to_string()                             // lol
     .as_bytes()                              // this is 
     .rchunks(3)                              // how
