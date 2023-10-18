@@ -26,7 +26,9 @@ fn main() {
     ///|||\\\
     ///|||\\\
     ///|||\\\
-    println!("window function");
+    if cfg!(windows) {
+        println!("window function");
+    }
 
     window_function();
     ///\\\|||///
