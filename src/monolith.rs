@@ -30,10 +30,10 @@ fn main() {
     let sample_window_class_wn = wide_null("Sample Window Class");
 
     let mut wc = WNDCLASSW::default();
-    wc.lpfnWndProc = Some(DefWindowProcW);
+    wc.lpfnWndProc = Some(window_procedure);
     wc.hInstance = hInstance;
     wc.lpszClassName = sample_window_class_wn.as_ptr();
-    wc.hCursor = unsafe { LoadCursorW(hInstance, IDC_ARROW) };
+    wc.hCursor = unsafe { LoadCursorW(null_mut(), IDC_ARROW) };
 
     let atom = unsafe { RegisterClassW(&wc) }; // smash
     if atom == 0 {
@@ -45,6 +45,7 @@ fn main() {
     }
 
     let sample_window_name_wn = wide_null("Sample Window Name");
+    let lparam: *mut i32 = Box::leak(Box::new(5_i32));
     let hwnd = unsafe {
         CreateWindowExW(
             0,
@@ -55,10 +56,10 @@ fn main() {
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            core::ptr::null_mut(),
-            core::ptr::null_mut(),
+            null_mut(),
+            null_mut(),
             hInstance,
-            core::ptr::null_mut(),
+            lparam.cast(),
         )
     };
     let _previously_visible = unsafe {
@@ -268,6 +269,7 @@ extern "system" {
 
 pub const WM_CLOSE: u32 = 0x0010;
 pub const WM_DESTROY: u32 = 0x0002;
+const WM_PAINT: u32 = 0x000F;
 
 #[link(name = "User32")]
 extern "system" {
@@ -278,15 +280,91 @@ extern "system" {
     pub fn PostQuitMessage(nExitCode: c_int);
 }
 
+#[link(name = "User32")]
+extern "system" {
+    /// [`LoadCursorW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw)
+    pub fn LoadCursorW(hInstance: HINSTANCE, lpCursorName: LPCWSTR) -> HCURSOR;
+}
+
+#[repr(C)]
+pub struct PAINTSTRUCT {
+    hdc: HDC,
+    fErase: BOOL,
+    rcPaint: RECT,
+    fRestore: BOOL,
+    fIncUpdate: BOOL,
+    rgbReserved: [BYTE; 32],
+}
+unsafe_impl_default_zeroed!(PAINTSTRUCT);
+
+type LPPAINTSTRUCT = *mut PAINTSTRUCT;
+type HDC = HANDLE;
+type BYTE = u8;
+#[repr(C)]
+pub struct RECT {
+    left: LONG,
+    top: LONG,
+    right: LONG,
+    bottom: LONG,
+}
+unsafe_impl_default_zeroed!(RECT);
+
+#[link(name = "User32")]
+extern "system" {
+    /// [`BeginPaint`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-beginpaint)
+    pub fn BeginPaint(hWnd: HWND, lpPaint: LPPAINTSTRUCT) -> HDC;
+
+    /// [`FillRect`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-fillrect)
+    pub fn FillRect(hDC: HDC, lprc: *const RECT, hbr: HBRUSH) -> c_int;
+
+    /// [`EndPaint`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint)
+    pub fn EndPaint(hWnd: HWND, lpPaint: *const PAINTSTRUCT) -> BOOL;
+}
+const COLOR_WINDOW: u32 = 5;
+
 pub unsafe extern "system" fn window_procedure(
     hWnd: HWND,
     Msg: UINT,
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
+    // in the window_procedure
     match Msg {
+        // in the window_procedure
+        WM_NCCREATE => {
+            println!("NC Create");
+            let createstruct: *mut CREATESTRUCTW = lParam as *mut _;
+            if createstruct.is_null() {
+                return 0;
+            }
+            let boxed_i32_ptr = (*createstruct).lpCreateParams;
+            SetWindowLongPtrW(hWnd, GWLP_USERDATA, boxed_i32_ptr as LONG_PTR);
+            return 1;
+        }
+        WM_CREATE => println!("Create"),
         WM_CLOSE => drop(DestroyWindow(hWnd)),
-        WM_DESTROY => PostQuitMessage(0),
+        WM_DESTROY => {
+            let ptr = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut i32;
+            Box::from_raw(ptr);
+            println!("Cleaned up the box.");
+            PostQuitMessage(0);
+        }
+        WM_PAINT => {
+            let ptr = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut i32;
+            println!("Current ptr: {}", *ptr);
+            *ptr += 1;
+            let mut ps = PAINTSTRUCT::default();
+            let hdc = BeginPaint(hWnd, &mut ps);
+            let _success = FillRect(hdc, &ps.rcPaint, (COLOR_WINDOW + 1) as HBRUSH);
+            EndPaint(hWnd, &ps);
+        }
+        WM_SETCURSOR => {
+            let hInstance = GetModuleHandleW(null());
+            let cursor = LoadCursorW(hInstance, IDC_ARROW);
+            let _old_cursor = SetCursor(cursor);
+            //
+            return 1;
+        }
         _ => return DefWindowProcW(hWnd, Msg, wParam, lParam),
     }
     0
@@ -294,6 +372,48 @@ pub unsafe extern "system" fn window_procedure(
 
 #[link(name = "User32")]
 extern "system" {
-    /// [`LoadCursorW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw)
-    pub fn LoadCursorW(hInstance: HINSTANCE, lpCursorName: LPCWSTR) -> HCURSOR;
+    /// [`MessageBoxW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw)
+    pub fn MessageBoxW(hWnd: HWND, lpText: LPCWSTR, lpCaption: LPCWSTR, uType: UINT) -> c_int;
 }
+const MB_OKCANCEL: u32 = 1;
+const IDOK: c_int = 1;
+
+const WM_NCCREATE: u32 = 0x0081;
+const WM_CREATE: u32 = 0x0001;
+
+#[repr(C)]
+pub struct CREATESTRUCTW {
+    lpCreateParams: LPVOID,
+    hInstance: HINSTANCE,
+    hMenu: HMENU,
+    hwndParent: HWND,
+    cy: c_int,
+    cx: c_int,
+    y: c_int,
+    x: c_int,
+    style: LONG,
+    lpszName: LPCWSTR,
+    lpszClass: LPCWSTR,
+    dwExStyle: DWORD,
+}
+unsafe_impl_default_zeroed!(CREATESTRUCTW);
+
+#[link(name = "User32")]
+extern "system" {
+    /// [`SetWindowLongPtrW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw)
+    pub fn SetWindowLongPtrW(hWnd: HWND, nIndex: c_int, dwNewLong: LONG_PTR) -> LONG_PTR;
+}
+const GWLP_USERDATA: c_int = -21;
+
+#[link(name = "User32")]
+extern "system" {
+    /// [`GetWindowLongPtrW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowlongptrw)
+    pub fn GetWindowLongPtrW(hWnd: HWND, nIndex: c_int) -> LONG_PTR;
+}
+
+#[link(name = "User32")]
+extern "system" {
+    /// [`SetCursor`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setcursor)
+    pub fn SetCursor(hCursor: HCURSOR) -> HCURSOR;
+}
+const WM_SETCURSOR: u32 = 0x0020;
