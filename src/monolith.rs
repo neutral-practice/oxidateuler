@@ -33,6 +33,7 @@ fn main() {
     wc.lpfnWndProc = Some(DefWindowProcW);
     wc.hInstance = hInstance;
     wc.lpszClassName = sample_window_class_wn.as_ptr();
+    wc.hCursor = unsafe { LoadCursorW(hInstance, IDC_ARROW) };
 
     let atom = unsafe { RegisterClassW(&wc) }; // smash
     if atom == 0 {
@@ -133,6 +134,14 @@ type UINT_PTR = usize;
 type WCHAR = wchar_t;
 type wchar_t = u16;
 type WPARAM = UINT_PTR;
+
+type LPWSTR = *mut WCHAR;
+type ULONG_PTR = usize;
+/// [`MAKEINTRESOURCEW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-makeintresourcew)
+pub const fn MAKEINTRESOURCEW(i: WORD) -> LPWSTR {
+    i as ULONG_PTR as LPWSTR
+}
+const IDC_ARROW: LPCWSTR = MAKEINTRESOURCEW(32512);
 
 type WNDPROC = Option<
     unsafe extern "system" fn(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT,
@@ -255,4 +264,36 @@ extern "system" {
 
     /// [`DispatchMessageW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagew)
     pub fn DispatchMessageW(lpMsg: *const MSG) -> LRESULT;
+}
+
+pub const WM_CLOSE: u32 = 0x0010;
+pub const WM_DESTROY: u32 = 0x0002;
+
+#[link(name = "User32")]
+extern "system" {
+    /// [`DestroyWindow`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-destroywindow)
+    pub fn DestroyWindow(hWnd: HWND) -> BOOL;
+
+    /// [`PostQuitMessage`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postquitmessage)
+    pub fn PostQuitMessage(nExitCode: c_int);
+}
+
+pub unsafe extern "system" fn window_procedure(
+    hWnd: HWND,
+    Msg: UINT,
+    wParam: WPARAM,
+    lParam: LPARAM,
+) -> LRESULT {
+    match Msg {
+        WM_CLOSE => drop(DestroyWindow(hWnd)),
+        WM_DESTROY => PostQuitMessage(0),
+        _ => return DefWindowProcW(hWnd, Msg, wParam, lParam),
+    }
+    0
+}
+
+#[link(name = "User32")]
+extern "system" {
+    /// [`LoadCursorW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw)
+    pub fn LoadCursorW(hInstance: HINSTANCE, lpCursorName: LPCWSTR) -> HCURSOR;
 }
